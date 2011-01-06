@@ -1,0 +1,23 @@
+Name:		bdd
+Version:	0.1
+Author:		Henning Günther
+Maintainer:	h.guenther@tu-bs.de
+License:	BSD3
+Synopsis:	A binary decision diagram library
+Description:
+        Shared reduced decision diagrams are an efficient encoding for bool functions.
+Category:	Codec
+Homepage:	
+Cabal-Version:	>=1.2
+Build-Type:	Simple
+
+Library
+  Build-Depends: base >= 3, containers, mtl, binary, bytestring, directory
+  Exposed-Modules:
+    Data.BDD
+    Data.BDD.Integer
+    Data.BDD.Serialization
+    Data.BDD.Sets
+    Data.BDD.Solutions
+  Other-Modules:
+    Data.BDD.Internals
