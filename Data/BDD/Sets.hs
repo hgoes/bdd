@@ -2,7 +2,8 @@
 module Data.BDD.Sets
     (encodeSet,
      decodeSet,
-     encodeSingleton
+     encodeSingleton,
+     encodeSingletonBits
     ) where
 
 import Data.BDD.Internals
@@ -78,6 +79,9 @@ fillRemaining limit pos fpos value f cur
                     s2 = fillRemaining limit (pos+1) fpos value f s1
                 in s2
 
+encodeSingletonBits :: (Bits a,Monad m) => Int -> a -> BDDM s Int m (Tree s Int)
+encodeSingletonBits off v = encodeSingleton' off 0 (bitSize v) v
+
 encodeSingleton :: (Bounded a,Enum a,Ord a,Monad m) => Int -> a -> BDDM s Int m (Tree s Int)
 encodeSingleton off (v::a) = encodeSingleton' off 0 fpos (fromEnum v - rmin)
   where
@@ -91,7 +95,7 @@ encodeSingleton off (v::a) = encodeSingleton' off 0 fpos (fromEnum v - rmin)
     vmax :: a
     vmax = maxBound
 
-encodeSingleton' :: Monad m => Int -> Int -> Int -> Int -> BDDM s Int m (Tree s Int)
+encodeSingleton' :: (Monad m,Bits a) => Int -> Int -> Int -> a -> BDDM s Int m (Tree s Int)
 encodeSingleton' off pos fpos value
   = do
     t <- true
@@ -100,7 +104,7 @@ encodeSingleton' off pos fpos value
       then return t
       else (do
                res <- encodeSingleton' off (pos+1) fpos value
-               if (value .&. (1 `shiftL` pos)) == 0
-                 then node (pos+off) f res
-                 else node (pos+off) res f
+               if testBit value pos
+                 then node (pos+off) res f
+                 else node (pos+off) f res
            )
