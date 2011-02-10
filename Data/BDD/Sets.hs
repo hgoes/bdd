@@ -10,12 +10,18 @@ import Data.Set as Set
 import Data.Bits
 import Data.Foldable
 
-encodeSet :: (Bits a,Monad m) => Int -> Set a -> BDDM s Int m (Tree s Int)
-encodeSet off set
-  | Set.null set = false
-  | otherwise = do
-    trees <- mapM (encodeSingleton off) (Set.toList set)
-    foldlM (#||) (head trees) (tail trees)
+encodeSet :: (Bits a,Ord a,Monad m) => Int -> Set a -> BDDM s Int m (Tree s Int)
+encodeSet off = encodeSet' undefined 0
+  where
+    encodeSet' :: (Bits a,Ord a,Monad m) => a -> Int -> Set a -> BDDM s Int m (Tree s Int)
+    encodeSet' el pos elems
+      | Set.null elems = false
+      | pos == bitSize el = true
+      | otherwise = let (l_els,r_els) = Set.partition (\x -> testBit x pos) elems
+                    in do
+                      t1 <- encodeSet' el (pos+1) l_els
+                      t2 <- encodeSet' el (pos+1) r_els
+                      node (pos+off) t1 t2
 
 decodeSet :: (Bits a,Ord a) => Int -> Tree s Int -> Set a
 decodeSet off tree = decodeSet' 0 tree 0 Set.empty
