@@ -2,109 +2,55 @@
 module Data.BDD.Sets
     (encodeSet,
      decodeSet,
-     encodeSingleton,
-     encodeSingletonBits
+     encodeSingleton
     ) where
 
 import Data.BDD.Internals
 import Data.Set as Set
 import Data.Bits
+import Data.Foldable
 
-encodeSet :: (Bounded a,Enum a,Ord a,Monad m) =>
-            Int   -- ^ The offset from which to start encoding the set
-          -> Set a -- ^ The set to encode 
-          -> BDDM s Int m (Tree s Int)
-encodeSet off (set::Set a) = encodeSet' off (\v -> toEnum (rmin+v)) 0 fpos 0 rmax set
-  where
-    fpos = ceiling $ logBase 2 (fromIntegral $ rmax-rmin+1)
-    rmin :: Int
-    rmin = fromEnum vmin
-    rmax :: Int
-    rmax = fromEnum vmax
-    vmin :: a
-    vmin = minBound
-    vmax :: a
-    vmax = maxBound
-
-encodeSet' :: (Ord a,Monad m) => Int -> (Int -> a) -> Int -> Int -> Int -> Int -> Set a -> BDDM s Int m (Tree s Int)
-encodeSet' off f pos fpos value limit set 
-  | pos == fpos = if value > limit
-                 then false
-                 else (if Set.member (f value) set
-                       then true
-                       else false)
+encodeSet :: (Bits a,Monad m) => Int -> Set a -> BDDM s Int m (Tree s Int)
+encodeSet off set
+  | Set.null set = false
   | otherwise = do
-    s1 <- encodeSet' off f (pos+1) fpos (value .|. (1 `shiftL` pos)) limit set
-    s2 <- encodeSet' off f (pos+1) fpos value limit set
-    node (pos+off) s1 s2
+    trees <- mapM (encodeSingleton off) (Set.toList set)
+    foldlM (#||) (head trees) (tail trees)
 
-decodeSet :: (Bounded a,Enum a,Ord a) => Int -> Tree s Int -> Set a
-decodeSet = decodeSet'' undefined
-
-decodeSet'' :: (Bounded a,Enum a,Ord a) => a -> Int -> Tree s Int -> Set a
-decodeSet'' (_::a) off tree = decodeSet' off (\v -> toEnum (rmin+v)) (-1) fpos rmax 0 Set.empty tree
+decodeSet :: (Bits a,Ord a) => Int -> Tree s Int -> Set a
+decodeSet off tree = decodeSet' 0 tree 0 Set.empty
   where
-    fpos = ceiling $ logBase 2 (fromIntegral $ rmax-rmin+1)
-    rmin :: Int
-    rmin = fromEnum vmin
-    rmax :: Int
-    rmax = fromEnum vmax
-    vmin :: a
-    vmin = minBound
-    vmax :: a
-    vmax = maxBound
+    decodeSet' :: (Bits a,Ord a) => Int -> Tree s Int -> a -> Set a -> Set a
+    decodeSet' pos (Leaf _ v) value cur = if v
+                                                 then fillRemaining pos value cur
+                                                 else cur
+    decodeSet' pos node@(Node _ sym l r) value cur
+      | sym - off < 0 = let s1 = decodeSet' pos l value cur
+                            s2 = decodeSet' pos r value s1
+                        in s2
+      | sym - off > bitSize value = fillRemaining pos value cur
+      | pos < sym - off = let s1 = decodeSet' (pos+1) node (setBit value pos) cur
+                              s2 = decodeSet' (pos+1) node value s1
+                          in s2
+      | otherwise = let s1 = decodeSet' (pos+1) l (setBit value pos) cur
+                        s2 = decodeSet' (pos+1) r value s1
+                    in s2
+    
+    fillRemaining :: (Bits a,Ord a) => Int -> a -> Set a -> Set a
+    fillRemaining pos value cur
+      | pos == bitSize value = Set.insert value cur
+      | otherwise = let s1 = fillRemaining (pos+1) (setBit value pos) cur
+                        s2 = fillRemaining (pos+1) value cur
+                    in s2
 
-decodeSet' :: (Ord a) => Int -> (Int -> a) -> Int -> Int -> Int -> Int -> Set a -> Tree s Int -> Set a
-decodeSet' off f pos fpos limit value set leaf@(Leaf _ v)
-  = if v
-    then fillRemaining limit pos fpos value f set
-    else set
-decodeSet' off f pos fpos limit value set node@(Node _ sym l r)
-  | sym - off < 0 = let set' = decodeSet' off f pos fpos limit value set l
-                    in decodeSet' off f pos fpos limit value set' r
-  | sym - off >= fpos = if value <= limit
-                       then fillRemaining limit pos fpos value f set --Set.insert (f value) set
-                       else set
-  | pos < sym - off = let set' = decodeSet' off f (pos+1) fpos limit (value .|. (1 `shiftL` pos)) set node
-                      in decodeSet' off f (pos+1) fpos limit value set' node
-  | otherwise = let set' = decodeSet' off f (pos+1) fpos limit (value .|. (1 `shiftL` pos)) set l
-                in decodeSet' off f (pos+1) fpos limit value set' r
-
-fillRemaining :: Ord a => Int -> Int -> Int -> Int -> (Int -> a) -> Set a -> Set a
-fillRemaining limit pos fpos value f cur
-  | pos == fpos = if value <= limit
-                 then Set.insert (f value) cur
-                 else cur
-  | otherwise = let s1 = fillRemaining limit (pos+1) fpos (value .|. (1 `shiftL` pos)) f cur
-                    s2 = fillRemaining limit (pos+1) fpos value f s1
-                in s2
-
-encodeSingletonBits :: (Bits a,Monad m) => Int -> a -> BDDM s Int m (Tree s Int)
-encodeSingletonBits off v = encodeSingleton' off 0 (bitSize v) v
-
-encodeSingleton :: (Bounded a,Enum a,Ord a,Monad m) => Int -> a -> BDDM s Int m (Tree s Int)
-encodeSingleton off (v::a) = encodeSingleton' off 0 fpos (fromEnum v - rmin)
+encodeSingleton :: (Bits a,Monad m) => Int -> a -> BDDM s Int m (Tree s Int)
+encodeSingleton off v = encodeSingleton' 0
   where
-    fpos = ceiling $ logBase 2 (fromIntegral $ rmax-rmin+1)
-    rmin :: Int
-    rmin = fromEnum vmin
-    rmax :: Int
-    rmax = fromEnum vmax
-    vmin :: a
-    vmin = minBound
-    vmax :: a
-    vmax = maxBound
-
-encodeSingleton' :: (Monad m,Bits a) => Int -> Int -> Int -> a -> BDDM s Int m (Tree s Int)
-encodeSingleton' off pos fpos value
-  = do
-    t <- true
-    f <- false
-    if pos == fpos
-      then return t
-      else (do
-               res <- encodeSingleton' off (pos+1) fpos value
-               if testBit value pos
-                 then node (pos+off) res f
-                 else node (pos+off) f res
-           )
+    encodeSingleton' n = if n == bitSize v
+                            then true
+                            else (do
+                                     f <- false
+                                     res <- encodeSingleton' (n+1)
+                                     if testBit v n
+                                       then node (n+off) res f
+                                       else node (n+off) f res)
