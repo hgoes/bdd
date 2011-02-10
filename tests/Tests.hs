@@ -22,7 +22,15 @@ encodeDecodeRange l h = let set1 = Set.fromAscList [l..h]
                               return $ decodeSet 0 tree
                         in set1 == set2
 
+encodeDecodeSingleton :: Int -> Int -> Bool
+encodeDecodeSingleton off num = let nset = Set.fromList [num]
+                                    nset2 = runIdBDDM $ do
+                                      tree <- encodeSingleton off num
+                                      return $ decodeSet off tree
+                                in nset == nset2
+
 main = do
+  quickCheck encodeDecodeSingleton
   quickCheck $ forAll (suchThat arbitrary (\(x,y) -> x < y)) (\(x,y) -> y > 100000 || x < -100000 || y-x > 10000 || encodeDecodeRange x y)
   quickCheck encodeDecodeId
   

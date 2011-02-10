@@ -51,13 +51,13 @@ decodeSet off tree = let p = 0
                     in s2
 
 encodeSingleton :: (Bits a,Monad m) => Int -> a -> BDDM s Int m (Tree s Int)
-encodeSingleton off v = encodeSingleton' 0
+encodeSingleton off v = encodeSingleton' ((bitSize v) - 1)
   where
-    encodeSingleton' n = if n == bitSize v
+    encodeSingleton' n = if n == -1
                             then true
                             else (do
                                      f <- false
-                                     res <- encodeSingleton' (n+1)
+                                     res <- encodeSingleton' (n-1)
                                      if testBit v n
-                                       then node (n+off) res f
-                                       else node (n+off) f res)
+                                       then node ((bitSize v)-1-n+off) res f
+                                       else node ((bitSize v)-1-n+off) f res)
