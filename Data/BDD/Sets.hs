@@ -11,20 +11,21 @@ import Data.Bits
 import Data.Foldable
 
 encodeSet :: (Bits a,Ord a,Monad m) => Int -> Set a -> BDDM s Int m (Tree s Int)
-encodeSet off = encodeSet' undefined 0
+encodeSet off (set::Set a) = encodeSet' (bitSize (undefined::a) - 1) set
   where
-    encodeSet' :: (Bits a,Ord a,Monad m) => a -> Int -> Set a -> BDDM s Int m (Tree s Int)
-    encodeSet' el pos elems
+    --encodeSet' :: (Bits a,Ord a,Monad m) => Int -> Set a -> BDDM s Int m (Tree s Int)
+    encodeSet' pos (elems::Set a)
       | Set.null elems = false
-      | pos == bitSize el = true
+      | pos == -1 = true
       | otherwise = let (l_els,r_els) = Set.partition (\x -> testBit x pos) elems
                     in do
-                      t1 <- encodeSet' el (pos+1) l_els
-                      t2 <- encodeSet' el (pos+1) r_els
-                      node (pos+off) t1 t2
+                      t1 <- encodeSet' (pos-1) l_els
+                      t2 <- encodeSet' (pos-1) r_els
+                      node ((bitSize (undefined::a))-1-pos+off) t1 t2
 
 decodeSet :: (Bits a,Ord a) => Int -> Tree s Int -> Set a
-decodeSet off tree = decodeSet' 0 tree 0 Set.empty
+decodeSet off tree = let p = 0
+                     in decodeSet' ((bitSize p) - 1) tree p Set.empty
   where
     decodeSet' :: (Bits a,Ord a) => Int -> Tree s Int -> a -> Set a -> Set a
     decodeSet' pos (Leaf _ v) value cur = if v
@@ -35,18 +36,18 @@ decodeSet off tree = decodeSet' 0 tree 0 Set.empty
                             s2 = decodeSet' pos r value s1
                         in s2
       | sym - off > bitSize value = fillRemaining pos value cur
-      | pos < sym - off = let s1 = decodeSet' (pos+1) node (setBit value pos) cur
-                              s2 = decodeSet' (pos+1) node value s1
-                          in s2
-      | otherwise = let s1 = decodeSet' (pos+1) l (setBit value pos) cur
-                        s2 = decodeSet' (pos+1) r value s1
+      | (bitSize value)-1-pos < sym - off = let s1 = decodeSet' (pos-1) node (setBit value pos) cur
+                                                s2 = decodeSet' (pos-1) node value s1
+                                            in s2
+      | otherwise = let s1 = decodeSet' (pos-1) l (setBit value pos) cur
+                        s2 = decodeSet' (pos-1) r value s1
                     in s2
     
     fillRemaining :: (Bits a,Ord a) => Int -> a -> Set a -> Set a
     fillRemaining pos value cur
-      | pos == bitSize value = Set.insert value cur
-      | otherwise = let s1 = fillRemaining (pos+1) (setBit value pos) cur
-                        s2 = fillRemaining (pos+1) value cur
+      | pos == -1 = Set.insert value cur
+      | otherwise = let s1 = fillRemaining (pos-1) (setBit value pos) cur
+                        s2 = fillRemaining (pos-1) value s1
                     in s2
 
 encodeSingleton :: (Bits a,Monad m) => Int -> a -> BDDM s Int m (Tree s Int)
