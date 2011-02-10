@@ -28,8 +28,8 @@ decodeSet off tree = decodeSet' 0 tree 0 Set.empty
   where
     decodeSet' :: (Bits a,Ord a) => Int -> Tree s Int -> a -> Set a -> Set a
     decodeSet' pos (Leaf _ v) value cur = if v
-                                                 then fillRemaining pos value cur
-                                                 else cur
+                                          then fillRemaining pos value cur
+                                          else cur
     decodeSet' pos node@(Node _ sym l r) value cur
       | sym - off < 0 = let s1 = decodeSet' pos l value cur
                             s2 = decodeSet' pos r value s1
