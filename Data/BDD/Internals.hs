@@ -308,3 +308,7 @@ decodeSets descr tree
           | otherwise = let s1 = dec' i off bits limit rest (pos+1) l path (value .|. (1 `shiftL` pos))
                             s2 = dec' i off bits limit rest (pos+1) r path value
                         in s1 ++ s2
+
+foldBDD :: (a -> c -> c -> c) -> (Bool -> c) -> Tree s a -> c
+foldBDD f g (Node _ sym l r) = f sym (foldBDD f g l) (foldBDD f g r)
+foldBDD f g (Leaf _ v) = g v

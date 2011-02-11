@@ -21,6 +21,7 @@ module Data.BDD (
                 ,debase
                 ,decodeSets
                 ,nodeHash
+                ,foldBDD
                 ) where
 
 import Data.BDD.Internals
